@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>B5業務資料エディタ</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&family=M+PLUS+1p:wght@400;700&display=swap');
+
+  :root {
+    --tab-colors: #4ECDC4, #FF6B6B, #45B7D1, #96CEB4, #FFEAA7, #DDA0DD, #98D8C8, #F7DC6F;
+    --bg: #f5f0eb;
+    --paper: #ffffff;
+    --ink: #1a1a1a;
+    --toolbar-bg: #2c3e50;
+    --toolbar-text: #ecf0f1;
+    --accent: #e74c3c;
+    --highlight-yellow: #fff176;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Noto Sans JP', 'M PLUS 1p', sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px;
+  }
+
+  h1.app-title {
+    font-family: 'M PLUS 1p', sans-serif;
+    font-size: 14px;
+    color: #7f8c8d;
+    margin-bottom: 12px;
+    letter-spacing: 2px;
+  }
+
+  /* ===== TOOLBAR ===== */
+  .toolbar {
+    width: 182mm;
+    max-width: 100%;
+    background: var(--toolbar-bg);
+    border-radius: 8px 8px 0 0;
+    padding: 8px 12px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+  }
+
+  .toolbar-group {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+    padding: 0 6px;
+    border-right: 1px solid rgba(255,255,255,0.15);
+  }
+  .toolbar-group:last-child { border-right: none; }
+
+  .toolbar button {
+    background: rgba(255,255,255,0.1);
+    color: var(--toolbar-text);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 4px;
+    padding: 5px 10px;
+    cursor: pointer;
+    font-size: 13px;
+    font-family: 'M PLUS 1p', sans-serif;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+  .toolbar button:hover {
+    background: rgba(255,255,255,0.25);
+  }
+  .toolbar button.active {
+    background: rgba(255,255,255,0.35);
+    border-color: rgba(255,255,255,0.5);
+  }
+
+  .toolbar .btn-bold { font-weight: 700; }
+  .toolbar .btn-red { color: #e74c3c; }
+  .toolbar .btn-highlight { background: var(--highlight-yellow); color: #333; }
+  .toolbar .btn-clear { color: #95a5a6; }
+
+  .toolbar label {
+    color: var(--toolbar-text);
+    font-size: 11px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+  }
+  .toolbar select {
+    background: rgba(255,255,255,0.15);
+    color: var(--toolbar-text);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 4px;
+    padding: 4px 6px;
+    font-size: 12px;
+    font-family: 'M PLUS 1p', sans-serif;
+  }
+
+  /* ===== TAB MANAGEMENT ===== */
+  .tab-controls {
+    width: 182mm;
+    max-width: 100%;
+    background: #34495e;
+    padding: 6px 12px;
+    display: flex;
+    gap: 6px;
+    align-items: center;
+  }
+  .tab-controls button {
+    background: rgba(255,255,255,0.15);
+    color: var(--toolbar-text);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 4px;
+    padding: 4px 10px;
+    cursor: pointer;
+    font-size: 12px;
+    font-family: 'M PLUS 1p', sans-serif;
+    transition: all 0.15s;
+  }
+  .tab-controls button:hover {
+    background: rgba(255,255,255,0.3);
+  }
+
+  /* ===== PAPER ===== */
+  .paper-container {
+    width: 182mm;
+    min-height: 257mm;
+    max-width: 100%;
+    background: var(--paper);
+    box-shadow: 0 2px 20px rgba(0,0,0,0.12);
+    position: relative;
+    overflow: visible;
+  }
+
+  /* ===== STICKY TABS ===== */
+  .tabs-area {
+    position: relative;
+    width: 100%;
+    min-height: 50px;
+    padding: 8px 10px 4px 10px;
+  }
+
+  .sticky-tab {
+    display: inline-flex;
+    align-items: center;
+    position: relative;
+    margin: 2px 4px 2px 0;
+    vertical-align: top;
+  }
+
+  .sticky-tab .tab-body {
+    padding: 6px 28px 6px 12px;
+    border-radius: 3px 3px 0 0;
+    font-size: 13px;
+    font-weight: 700;
+    font-family: 'M PLUS 1p', sans-serif;
+    color: #333;
+    box-shadow: 1px -1px 3px rgba(0,0,0,0.1);
+    cursor: text;
+    min-width: 60px;
+    outline: none;
+    border: none;
+    position: relative;
+    line-height: 1.4;
+    /* slight rotation for sticky note feel */
+    transform: rotate(-0.5deg);
+  }
+  .sticky-tab .tab-body:focus {
+    box-shadow: 1px -1px 6px rgba(0,0,0,0.2);
+  }
+
+  .sticky-tab .tab-delete {
+    position: absolute;
+    right: 4px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    color: rgba(0,0,0,0.3);
+    cursor: pointer;
+    font-size: 16px;
+    line-height: 1;
+    padding: 2px 4px;
+    z-index: 2;
+  }
+  .sticky-tab .tab-delete:hover {
+    color: rgba(0,0,0,0.7);
+  }
+
+  /* Tab color rotation */
+  .sticky-tab:nth-child(8n+1) .tab-body { background: #4ECDC4; }
+  .sticky-tab:nth-child(8n+2) .tab-body { background: #FF6B6B; }
+  .sticky-tab:nth-child(8n+3) .tab-body { background: #45B7D1; }
+  .sticky-tab:nth-child(8n+4) .tab-body { background: #96CEB4; }
+  .sticky-tab:nth-child(8n+5) .tab-body { background: #FFEAA7; }
+  .sticky-tab:nth-child(8n+6) .tab-body { background: #DDA0DD; }
+  .sticky-tab:nth-child(8n+7) .tab-body { background: #98D8C8; }
+  .sticky-tab:nth-child(8n+8) .tab-body { background: #F7DC6F; }
+
+  .tabs-divider {
+    width: calc(100% - 20px);
+    margin: 0 10px;
+    height: 2px;
+    background: linear-gradient(90deg, #ddd, #bbb, #ddd);
+  }
+
+  /* ===== CONTENT AREA ===== */
+  .content-area {
+    min-height: 220mm;
+    padding: 15px 20px 20px 20px;
+    outline: none;
+    font-size: 14px;
+    line-height: 1.8;
+    font-family: 'Noto Sans JP', sans-serif;
+  }
+  .content-area:empty::before {
+    content: 'ここに本文を入力...';
+    color: #bbb;
+    pointer-events: none;
+  }
+
+  /* ===== EXPORT BAR ===== */
+  .export-bar {
+    width: 182mm;
+    max-width: 100%;
+    background: var(--toolbar-bg);
+    border-radius: 0 0 8px 8px;
+    padding: 8px 12px;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    justify-content: flex-end;
+  }
+  .export-bar button {
+    background: #27ae60;
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    padding: 6px 16px;
+    cursor: pointer;
+    font-size: 13px;
+    font-family: 'M PLUS 1p', sans-serif;
+    font-weight: 700;
+    transition: all 0.15s;
+  }
+  .export-bar button:hover { background: #2ecc71; }
+  .export-bar .btn-print { background: #2980b9; }
+  .export-bar .btn-print:hover { background: #3498db; }
+
+  /* ===== PRINT STYLES ===== */
+  @media print {
+    @page {
+      size: B5;
+      margin: 10mm;
+    }
+    body {
+      background: none;
+      padding: 0;
+      min-height: auto;
+    }
+    h1.app-title, .toolbar, .tab-controls, .export-bar {
+      display: none !important;
+    }
+    .paper-container {
+      box-shadow: none;
+      width: 100%;
+      min-height: auto;
+    }
+    .content-area {
+      min-height: auto;
+    }
+    .sticky-tab .tab-delete {
+      display: none;
+    }
+  }
+
+  /* Highlight styles */
+  .highlight-bg {
+    background-color: var(--highlight-yellow);
+    padding: 0 1px;
+  }
+  .highlight-underline {
+    border-bottom: 3px solid var(--highlight-yellow);
+    text-decoration: none;
+  }
+</style>
+</head>
+<body>
+
+<h1 class="app-title">B5 業務資料エディタ</h1>
+
+<!-- TOOLBAR -->
+<div class="toolbar">
+  <div class="toolbar-group">
+    <button class="btn-bold" onclick="execCmd('bold')" title="太字">B</button>
+    <button onclick="toggleUppercase()" title="大文字">A↑</button>
+    <button class="btn-red" onclick="applyRed()" title="赤字">赤</button>
+  </div>
+  <div class="toolbar-group">
+    <select id="highlightMode" title="蛍光ペンモード">
+      <option value="background">背景色</option>
+      <option value="underline">下線</option>
+    </select>
+    <button class="btn-highlight" onclick="applyHighlight()" title="蛍光ペン">蛍光</button>
+  </div>
+  <div class="toolbar-group">
+    <button class="btn-clear" onclick="clearFormatting()" title="書式クリア">クリア</button>
+  </div>
+</div>
+
+<!-- TAB CONTROLS -->
+<div class="tab-controls">
+  <button onclick="addTab()">＋ 付箋追加</button>
+  <span style="color:rgba(255,255,255,0.4); font-size:11px;">タブをクリックして編集</span>
+</div>
+
+<!-- PAPER -->
+<div class="paper-container">
+  <div class="tabs-area" id="tabsArea">
+    <!-- Sticky tabs go here -->
+  </div>
+  <div class="tabs-divider" id="tabsDivider" style="display:none;"></div>
+  <div class="content-area" id="contentArea" contenteditable="true"></div>
+</div>
+
+<!-- EXPORT BAR -->
+<div class="export-bar">
+  <button class="btn-print" onclick="printDoc()">🖨 印刷 / PDF</button>
+</div>
+
+<script>
+  // ===== Rich Text Commands =====
+  function execCmd(cmd, value) {
+    document.execCommand(cmd, false, value || null);
+    document.getElementById('contentArea').focus();
+  }
+
+  function toggleUppercase() {
+    const sel = window.getSelection();
+    if (!sel.rangeCount || sel.isCollapsed) return;
+    const range = sel.getRangeAt(0);
+    const text = sel.toString();
+    
+    // Check if already uppercase
+    if (text === text.toUpperCase() && text !== text.toLowerCase()) {
+      // Revert to lowercase
+      const span = document.createElement('span');
+      span.textContent = text.toLowerCase();
+      range.deleteContents();
+      range.insertNode(span);
+    } else {
+      const span = document.createElement('span');
+      span.textContent = text.toUpperCase();
+      range.deleteContents();
+      range.insertNode(span);
+    }
+    document.getElementById('contentArea').focus();
+  }
+
+  function applyRed() {
+    execCmd('foreColor', '#e74c3c');
+  }
+
+  function applyHighlight() {
+    const mode = document.getElementById('highlightMode').value;
+    const sel = window.getSelection();
+    if (!sel.rangeCount || sel.isCollapsed) return;
+
+    if (mode === 'background') {
+      execCmd('hiliteColor', '#fff176');
+    } else {
+      // Underline mode - wrap in span with bottom border
+      const range = sel.getRangeAt(0);
+      const span = document.createElement('span');
+      span.className = 'highlight-underline';
+      try {
+        range.surroundContents(span);
+      } catch(e) {
+        // If surroundContents fails (partial selection), use execCommand fallback
+        execCmd('underline');
+      }
+    }
+    document.getElementById('contentArea').focus();
+  }
+
+  function clearFormatting() {
+    execCmd('removeFormat');
+    // Also remove custom classes
+    const sel = window.getSelection();
+    if (!sel.rangeCount || sel.isCollapsed) return;
+    
+    const range = sel.getRangeAt(0);
+    const container = range.commonAncestorContainer;
+    
+    // Walk up and remove highlight classes
+    let node = container;
+    while (node && node !== document.getElementById('contentArea')) {
+      if (node.nodeType === 1) {
+        node.classList.remove('highlight-underline', 'highlight-bg');
+        if (node.style) {
+          node.style.backgroundColor = '';
+          node.style.color = '';
+          node.style.textTransform = '';
+        }
+      }
+      node = node.parentNode;
+    }
+    document.getElementById('contentArea').focus();
+  }
+
+  // ===== Tab Management =====
+  let tabCount = 0;
+
+  function addTab() {
+    tabCount++;
+    const tabsArea = document.getElementById('tabsArea');
+    const divider = document.getElementById('tabsDivider');
+    
+    const tab = document.createElement('div');
+    tab.className = 'sticky-tab';
+    tab.innerHTML = `
+      <div class="tab-body" contenteditable="true" 
+           data-placeholder="項目${tabCount}"
+           onfocus="if(this.textContent.trim()==='項目${tabCount}')this.textContent=''"
+           onblur="if(this.textContent.trim()==='')this.textContent='項目${tabCount}'"
+      >項目${tabCount}</div>
+      <button class="tab-delete" onclick="removeTab(this)" title="削除">×</button>
+    `;
+    
+    // Slight random rotation for natural look
+    const rotation = (Math.random() - 0.5) * 2;
+    tab.querySelector('.tab-body').style.transform = `rotate(${rotation}deg)`;
+    
+    tabsArea.appendChild(tab);
+    divider.style.display = 'block';
+    
+    // Focus the new tab for immediate editing
+    tab.querySelector('.tab-body').focus();
+    document.execCommand('selectAll', false, null);
+  }
+
+  function removeTab(btn) {
+    const tab = btn.parentElement;
+    tab.remove();
+    
+    const tabsArea = document.getElementById('tabsArea');
+    if (tabsArea.children.length === 0) {
+      document.getElementById('tabsDivider').style.display = 'none';
+    }
+  }
+
+  // ===== Print =====
+  function printDoc() {
+    window.print();
+  }
+
+  // ===== Keyboard shortcuts =====
+  document.addEventListener('keydown', function(e) {
+    if (e.ctrlKey || e.metaKey) {
+      switch(e.key) {
+        case 'b': e.preventDefault(); execCmd('bold'); break;
+        case 'p': e.preventDefault(); printDoc(); break;
+      }
+    }
+  });
+
+  // Initialize with one tab
+  addTab();
+</script>
+</body>
+</html>
