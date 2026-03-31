@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>B5業務資料エディタ</title>
+<title>B5業務資料エディタ - Pro Edition</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&family=M+PLUS+1p:wght@400;700&display=swap');
 
@@ -31,7 +31,7 @@
     padding: 16px;
   }
 
-  /* ===== TOOLBAR (sticky top) ===== */
+  /* ===== TOOLBAR ===== */
   .toolbar-wrap {
     position: sticky;
     top: 0;
@@ -88,9 +88,8 @@
   .btn-bold { font-weight: 700; }
   .btn-red { color: #e74c3c !important; }
   .btn-hl { background: var(--highlight-yellow) !important; color: #333 !important; }
-  .btn-clear { color: #95a5a6 !important; }
   .btn-add-sec { background: #27ae60 !important; color: #fff !important; border-color: #27ae60 !important; }
-  .btn-add-sec:hover { background: #2ecc71 !important; }
+  .btn-img { background: #8e44ad !important; color: #fff !important; }
 
   .font-size-btn { min-width: 28px; text-align: center; }
   .font-size-btn.sz-active { background: rgba(255,255,255,0.4) !important; font-weight: 700; }
@@ -104,7 +103,7 @@
     align-items: center;
     justify-content: space-between;
   }
-  .bottom-bar span { color: rgba(255,255,255,0.4); font-size: 11px; }
+  .status-msg { color: rgba(255,255,255,0.5); font-size: 10px; font-style: italic; }
   .bottom-bar button {
     background: #2980b9;
     color: #fff;
@@ -115,9 +114,7 @@
     font-size: 12px;
     font-weight: 700;
     font-family: 'M PLUS 1p', sans-serif;
-    transition: all 0.12s;
   }
-  .bottom-bar button:hover { background: #3498db; }
 
   /* ===== PAPER ===== */
   .paper {
@@ -128,22 +125,16 @@
     min-height: 257mm;
   }
 
-  /* ===== SECTION ===== */
   .section {
     padding: 0;
     position: relative;
   }
-  /* Every section after the first gets a page-break in print */
-  .section + .section {
-    border-top: 2px dashed #ccc;
-  }
+  .section + .section { border-top: 2px dashed #ccc; }
 
-  /* Tab header */
   .section-tab {
     display: flex;
     align-items: center;
     padding: 8px 12px 0 12px;
-    transition: padding-left 0.2s ease;
   }
 
   .tab-label {
@@ -152,14 +143,11 @@
     border-radius: 4px 4px 0 0;
     font-size: 13px;
     font-weight: 700;
-    font-family: 'M PLUS 1p', sans-serif;
     color: #333;
     box-shadow: 1px -1px 3px rgba(0,0,0,0.08);
     outline: none;
     min-width: 50px;
-    line-height: 1.4;
     cursor: text;
-    position: relative;
   }
 
   .section-controls {
@@ -174,10 +162,8 @@
     cursor: pointer;
     font-size: 15px;
     padding: 2px 5px;
-    border-radius: 3px;
-    transition: all 0.12s;
   }
-  .section-controls button:hover { color: #666; background: rgba(0,0,0,0.05); }
+  .section-controls button:hover { color: #666; }
 
   .tab-underline {
     margin: 0 12px;
@@ -185,27 +171,32 @@
     background: linear-gradient(90deg, #ccc, #ddd, transparent);
   }
 
-  /* Section content */
   .section-content {
     padding: 10px 25.4mm 20px 25.4mm;
     min-height: 60px;
     outline: none;
     font-size: 14px;
     line-height: 1.85;
-    font-family: 'Noto Sans JP', sans-serif;
-  }
-  .section-content:empty::before {
-    content: 'ここに本文を入力...';
-    color: #ccc;
-    pointer-events: none;
+    overflow-wrap: break-word;
   }
 
-  /* Font size classes for content */
-  .section-content.fs-small { font-size: 11px; line-height: 1.7; }
-  .section-content.fs-medium { font-size: 14px; line-height: 1.85; }
-  .section-content.fs-large { font-size: 18px; line-height: 1.9; }
+  /* Image Auto-Resizing */
+  .section-content img {
+    max-width: 100%;
+    height: auto;
+    display: block;
+    margin: 10px 0;
+  }
 
-  /* Tab colors - 8 color rotation */
+  .section.collapsed .section-content, 
+  .section.collapsed .tab-underline { display: none; }
+
+  /* Font size classes */
+  .section-content.fs-small { font-size: 11px; }
+  .section-content.fs-medium { font-size: 14px; }
+  .section-content.fs-large { font-size: 18px; }
+
+  /* Tab colors */
   .section:nth-child(8n+1) .tab-label { background: #4ECDC4; }
   .section:nth-child(8n+2) .tab-label { background: #FF6B6B; }
   .section:nth-child(8n+3) .tab-label { background: #45B7D1; }
@@ -215,155 +206,158 @@
   .section:nth-child(8n+7) .tab-label { background: #98D8C8; }
   .section:nth-child(8n+8) .tab-label { background: #F7DC6F; }
 
-  /* Dashed page break indicator */
-  .section + .section::before {
-    content: '✂ 改ページ';
-    display: block;
-    text-align: center;
-    font-size: 10px;
-    color: #bbb;
-    padding: 2px 0;
-    letter-spacing: 2px;
-  }
-
-  /* Highlight */
-  .highlight-underline { border-bottom: 3px solid var(--highlight-yellow); }
-
-  /* ===== PRINT ===== */
   @media print {
-    @page {
-      size: 182mm 257mm; /* B5 */
-      margin: 30mm 25.4mm;
-    }
-    body { background: none; padding: 0; }
-    .toolbar-wrap, .bottom-bar { display: none !important; }
-    .paper {
-      box-shadow: none;
-      width: 100%;
-      min-height: auto;
-    }
-    .section + .section {
-      break-before: page;
-      border-top: none;
-    }
-    .section + .section::before { display: none; }
-    .section-controls { display: none; }
-    .section-content {
-      padding-left: 0;
-      padding-right: 0;
-    }
-    .section-tab { /* keep dynamic padding-left for tab offsets */ }
-    .tab-underline { margin-left: 0; margin-right: 0; }
+    @page { size: 182mm 257mm; margin: 30mm 25.4mm; }
+    .toolbar-wrap, .bottom-bar, .section-controls { display: none !important; }
+    .paper { box-shadow: none; width: 100%; }
+    .section + .section { break-before: page; border-top: none; }
+    .section.collapsed .section-content { display: block !important; }
+    .section-content { padding-left: 0; padding-right: 0; }
   }
 </style>
 </head>
 <body>
 
-<!-- TOOLBAR -->
 <div class="toolbar-wrap">
   <div class="toolbar">
     <div class="tg">
-      <button class="btn-bold" onclick="execCmd('bold')" title="太字 (Ctrl+B)">B</button>
-      <button onclick="toggleUppercase()" title="大文字切替">A↑</button>
-      <button class="btn-red" onclick="execCmd('foreColor','#e74c3c')" title="赤字">赤</button>
+      <button class="btn-bold" onclick="execCmd('bold')">B</button>
+      <button class="btn-red" onclick="execCmd('foreColor','#e74c3c')">赤</button>
+      <button class="btn-img" onclick="triggerImgInput()">🖼 画像</button>
     </div>
     <div class="tg">
-      <select id="hlMode" title="蛍光ペンモード">
+      <select id="hlMode">
         <option value="bg">背景色</option>
         <option value="ul">下線</option>
       </select>
-      <button class="btn-hl" onclick="applyHighlight()" title="蛍光ペン">蛍光</button>
+      <button class="btn-hl" onclick="applyHighlight()">蛍光</button>
     </div>
     <div class="tg">
-      <button class="btn-clear" onclick="clearFormat()" title="書式クリア">クリア</button>
-    </div>
-    <div class="tg">
-      <button class="font-size-btn sz-active" data-sz="small" onclick="setFontSize('small',this)" title="小">小</button>
-      <button class="font-size-btn" data-sz="medium" onclick="setFontSize('medium',this)" title="中">中</button>
-      <button class="font-size-btn" data-sz="large" onclick="setFontSize('large',this)" title="大">大</button>
+      <button class="font-size-btn sz-active" onclick="setFontSize('small',this)">小</button>
+      <button class="font-size-btn" onclick="setFontSize('medium',this)">中</button>
+      <button class="font-size-btn" onclick="setFontSize('large',this)">大</button>
     </div>
     <div class="tg">
       <button class="btn-add-sec" onclick="addSection()">＋ セクション追加</button>
     </div>
+    <div class="tg">
+      <button onclick="clearAllData()" style="background:#c0392b">全消去</button>
+    </div>
   </div>
 </div>
 
-<!-- PAPER -->
-<div class="paper" id="paper">
-  <!-- sections injected here -->
-</div>
+<input type="file" id="imgInput" style="display:none" accept="image/*" onchange="handleImgUpload(this)">
 
-<!-- BOTTOM BAR -->
+<div class="paper" id="paper"></div>
+
 <div class="toolbar-wrap">
   <div class="bottom-bar">
-    <span>セクション = 印刷ページ</span>
+    <span class="status-msg" id="statusMsg">Auto-saving...</span>
     <button onclick="window.print()">🖨 印刷 / PDF保存</button>
   </div>
 </div>
 
 <script>
-  let sectionCount = 0;
   let currentFontSize = 'small';
-  const TAB_STEP = 60; // px per step
-  const MAX_OFFSET = 300; // px max before wrapping back
-  const STEPS_BEFORE_WRAP = Math.floor(MAX_OFFSET / TAB_STEP); // 5 steps
+  const TAB_STEP = 60;
+  const STEPS_BEFORE_WRAP = 5;
 
-  // ===== Tab Offset (staircase, wraps back) =====
-  function updateTabOffsets() {
-    const sections = document.querySelectorAll('.section');
-    sections.forEach((sec, i) => {
-      const step = i % (STEPS_BEFORE_WRAP + 1); // 0,1,2,3,4,5,0,1,2...
-      const offset = 12 + step * TAB_STEP;
-      sec.querySelector('.section-tab').style.paddingLeft = offset + 'px';
+  // ===== LocalStorage =====
+  function saveToLocal() {
+    const data = [];
+    document.querySelectorAll('.section').forEach(sec => {
+      data.push({
+        label: sec.querySelector('.tab-label').innerText,
+        content: sec.querySelector('.section-content').innerHTML,
+        collapsed: sec.classList.contains('collapsed')
+      });
     });
+    localStorage.setItem('B5GyoumuData', JSON.stringify({
+      fontSize: currentFontSize,
+      sections: data
+    }));
+    const now = new Date();
+    document.getElementById('statusMsg').innerText = `Saved at ${now.getHours()}:${now.getMinutes()}:${now.getSeconds()}`;
+  }
+
+  function loadFromLocal() {
+    const raw = localStorage.getItem('B5GyoumuData');
+    if (!raw) {
+      addSection();
+      return;
+    }
+    const store = JSON.parse(raw);
+    currentFontSize = store.fontSize || 'small';
+    
+    // Sync UI for font size
+    document.querySelectorAll('.font-size-btn').forEach(b => {
+        b.classList.toggle('sz-active', b.innerText.includes(currentFontSize === 'small' ? '小' : (currentFontSize === 'medium' ? '中' : '大')));
+    });
+
+    store.sections.forEach(s => addSection(s.label, s.content, s.collapsed));
+  }
+
+  function clearAllData() {
+    if(confirm('全てのデータを消去しますか？')) {
+      localStorage.removeItem('B5GyoumuData');
+      location.reload();
+    }
   }
 
   // ===== Section Management =====
-  function addSection() {
-    sectionCount++;
+  function addSection(labelVal = '新規項目', contentVal = '', isCollapsed = false) {
     const sec = document.createElement('div');
-    sec.className = 'section';
+    sec.className = 'section' + (isCollapsed ? ' collapsed' : '');
     sec.innerHTML = `
       <div class="section-tab">
-        <div class="tab-label" contenteditable="true">項目${sectionCount}</div>
+        <div class="tab-label" contenteditable="true">${labelVal}</div>
         <div class="section-controls">
-          <button onclick="moveSection(this,-1)" title="上へ">▲</button>
-          <button onclick="moveSection(this,1)" title="下へ">▼</button>
-          <button onclick="removeSection(this)" title="削除">×</button>
+          <button onclick="toggleCollapse(this)" title="折りたたみ">👁</button>
+          <button onclick="moveSection(this,-1)">▲</button>
+          <button onclick="moveSection(this,1)">▼</button>
+          <button onclick="removeSection(this)">×</button>
         </div>
       </div>
       <div class="tab-underline"></div>
-      <div class="section-content fs-${currentFontSize}" contenteditable="true"></div>
+      <div class="section-content fs-${currentFontSize}" contenteditable="true">${contentVal}</div>
     `;
     document.getElementById('paper').appendChild(sec);
     updateTabOffsets();
-    // Focus tab for immediate naming
-    const label = sec.querySelector('.tab-label');
-    label.focus();
-    document.execCommand('selectAll', false, null);
+    
+    // Auto-save listeners
+    sec.addEventListener('input', debounce(saveToLocal, 1000));
+  }
+
+  function toggleCollapse(btn) {
+    btn.closest('.section').classList.toggle('collapsed');
+    saveToLocal();
   }
 
   function removeSection(btn) {
-    const sec = btn.closest('.section');
-    if (document.querySelectorAll('.section').length <= 1) {
-      if (!confirm('最後のセクションを削除しますか？')) return;
+    if (confirm('削除しますか？')) {
+      btn.closest('.section').remove();
+      updateTabOffsets();
+      saveToLocal();
     }
-    sec.remove();
-    updateTabOffsets();
   }
 
   function moveSection(btn, dir) {
     const sec = btn.closest('.section');
     const paper = document.getElementById('paper');
-    if (dir === -1 && sec.previousElementSibling) {
-      paper.insertBefore(sec, sec.previousElementSibling);
-    } else if (dir === 1 && sec.nextElementSibling) {
-      paper.insertBefore(sec.nextElementSibling, sec);
-    }
+    if (dir === -1 && sec.previousElementSibling) paper.insertBefore(sec, sec.previousElementSibling);
+    else if (dir === 1 && sec.nextElementSibling) paper.insertBefore(sec.nextElementSibling, sec);
     updateTabOffsets();
+    saveToLocal();
   }
 
-  // ===== Font Size (applies to ALL sections) =====
+  function updateTabOffsets() {
+    document.querySelectorAll('.section').forEach((sec, i) => {
+      const step = i % (STEPS_BEFORE_WRAP + 1);
+      sec.querySelector('.section-tab').style.paddingLeft = (12 + step * TAB_STEP) + 'px';
+    });
+  }
+
+  // ===== Features =====
   function setFontSize(sz, btn) {
     currentFontSize = sz;
     document.querySelectorAll('.font-size-btn').forEach(b => b.classList.remove('sz-active'));
@@ -372,53 +366,47 @@
       el.classList.remove('fs-small', 'fs-medium', 'fs-large');
       el.classList.add('fs-' + sz);
     });
+    saveToLocal();
   }
 
-  // ===== Rich Text =====
-  function execCmd(cmd, val) {
-    document.execCommand(cmd, false, val || null);
+  function triggerImgInput() { document.getElementById('imgInput').click(); }
+
+  function handleImgUpload(input) {
+    if (!input.files || !input.files[0]) return;
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      const imgHtml = `<img src="${e.target.result}" alt="uploaded image">`;
+      document.execCommand('insertHTML', false, imgHtml);
+      saveToLocal();
+    };
+    reader.readAsDataURL(input.files[0]);
   }
 
-  function toggleUppercase() {
-    const sel = window.getSelection();
-    if (!sel.rangeCount || sel.isCollapsed) return;
-    const range = sel.getRangeAt(0);
-    const text = sel.toString();
-    const span = document.createElement('span');
-    span.textContent = (text === text.toUpperCase() && text !== text.toLowerCase())
-      ? text.toLowerCase() : text.toUpperCase();
-    range.deleteContents();
-    range.insertNode(span);
-  }
+  function execCmd(cmd, val) { document.execCommand(cmd, false, val || null); saveToLocal(); }
 
   function applyHighlight() {
     const mode = document.getElementById('hlMode').value;
-    if (mode === 'bg') {
-      execCmd('hiliteColor', '#fff176');
-    } else {
+    if (mode === 'bg') execCmd('hiliteColor', '#fff176');
+    else {
       const sel = window.getSelection();
       if (!sel.rangeCount || sel.isCollapsed) return;
-      const range = sel.getRangeAt(0);
       const span = document.createElement('span');
-      span.className = 'highlight-underline';
-      try { range.surroundContents(span); } catch(e) { execCmd('underline'); }
+      span.style.borderBottom = '3px solid #fff176';
+      try { sel.getRangeAt(0).surroundContents(span); } catch(e) { execCmd('underline'); }
+      saveToLocal();
     }
   }
 
-  function clearFormat() {
-    execCmd('removeFormat');
+  function debounce(func, wait) {
+    let timeout;
+    return function() {
+      clearTimeout(timeout);
+      timeout = setTimeout(() => func.apply(this, arguments), wait);
+    };
   }
 
-  // ===== Keyboard Shortcuts =====
-  document.addEventListener('keydown', function(e) {
-    if (e.ctrlKey || e.metaKey) {
-      if (e.key === 'b') { e.preventDefault(); execCmd('bold'); }
-      if (e.key === 'p') { e.preventDefault(); window.print(); }
-    }
-  });
-
-  // Init with first section
-  addSection();
+  // Init
+  window.onload = loadFromLocal;
 </script>
 </body>
 </html>
