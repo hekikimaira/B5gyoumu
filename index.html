@@ -143,6 +143,7 @@
     display: flex;
     align-items: center;
     padding: 8px 12px 0 12px;
+    transition: padding-left 0.2s ease;
   }
 
   .tab-label {
@@ -251,7 +252,7 @@
       padding-left: 0;
       padding-right: 0;
     }
-    .section-tab { padding-left: 0; }
+    .section-tab { /* keep dynamic padding-left for tab offsets */ }
     .tab-underline { margin-left: 0; margin-right: 0; }
   }
 </style>
@@ -303,6 +304,19 @@
 <script>
   let sectionCount = 0;
   let currentFontSize = 'small';
+  const TAB_STEP = 60; // px per step
+  const MAX_OFFSET = 300; // px max before wrapping back
+  const STEPS_BEFORE_WRAP = Math.floor(MAX_OFFSET / TAB_STEP); // 5 steps
+
+  // ===== Tab Offset (staircase, wraps back) =====
+  function updateTabOffsets() {
+    const sections = document.querySelectorAll('.section');
+    sections.forEach((sec, i) => {
+      const step = i % (STEPS_BEFORE_WRAP + 1); // 0,1,2,3,4,5,0,1,2...
+      const offset = 12 + step * TAB_STEP;
+      sec.querySelector('.section-tab').style.paddingLeft = offset + 'px';
+    });
+  }
 
   // ===== Section Management =====
   function addSection() {
@@ -322,6 +336,7 @@
       <div class="section-content fs-${currentFontSize}" contenteditable="true"></div>
     `;
     document.getElementById('paper').appendChild(sec);
+    updateTabOffsets();
     // Focus tab for immediate naming
     const label = sec.querySelector('.tab-label');
     label.focus();
@@ -334,6 +349,7 @@
       if (!confirm('最後のセクションを削除しますか？')) return;
     }
     sec.remove();
+    updateTabOffsets();
   }
 
   function moveSection(btn, dir) {
@@ -344,6 +360,7 @@
     } else if (dir === 1 && sec.nextElementSibling) {
       paper.insertBefore(sec.nextElementSibling, sec);
     }
+    updateTabOffsets();
   }
 
   // ===== Font Size (applies to ALL sections) =====
