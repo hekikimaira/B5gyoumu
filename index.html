@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>B5業務資料エディタ - Pro Edition</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&family=M+PLUS+1p:wght@400;700&display=swap');
 
@@ -90,6 +91,8 @@
   .btn-hl { background: var(--highlight-yellow) !important; color: #333 !important; }
   .btn-add-sec { background: #27ae60 !important; color: #fff !important; border-color: #27ae60 !important; }
   .btn-img { background: #8e44ad !important; color: #fff !important; }
+  .btn-export { background: #2980b9 !important; color: #fff !important; }
+  .btn-import { background: #16a085 !important; color: #fff !important; }
 
   .font-size-btn { min-width: 28px; text-align: center; }
   .font-size-btn.sz-active { background: rgba(255,255,255,0.4) !important; font-weight: 700; }
@@ -135,6 +138,7 @@
     display: flex;
     align-items: center;
     padding: 8px 12px 0 12px;
+    transition: padding-left 0.2s ease;
   }
 
   .tab-label {
@@ -180,7 +184,6 @@
     overflow-wrap: break-word;
   }
 
-  /* Image Auto-Resizing */
   .section-content img {
     max-width: 100%;
     height: auto;
@@ -188,10 +191,9 @@
     margin: 10px 0;
   }
 
-  .section.collapsed .section-content, 
+  .section.collapsed .section-content,
   .section.collapsed .tab-underline { display: none; }
 
-  /* Font size classes */
   .section-content.fs-small { font-size: 11px; }
   .section-content.fs-medium { font-size: 14px; }
   .section-content.fs-large { font-size: 18px; }
@@ -206,17 +208,54 @@
   .section:nth-child(8n+7) .tab-label { background: #98D8C8; }
   .section:nth-child(8n+8) .tab-label { background: #F7DC6F; }
 
+  /* Page break indicator */
+  .section + .section::before {
+    content: '✂ 改ページ';
+    display: block;
+    text-align: center;
+    font-size: 10px;
+    color: #bbb;
+    padding: 2px 0;
+    letter-spacing: 2px;
+  }
+
   @media print {
     @page { size: 182mm 257mm; margin: 30mm 25.4mm; }
     .toolbar-wrap, .bottom-bar, .section-controls { display: none !important; }
     .paper { box-shadow: none; width: 100%; }
     .section + .section { break-before: page; border-top: none; }
+    .section + .section::before { display: none; }
     .section.collapsed .section-content { display: block !important; }
     .section-content { padding-left: 0; padding-right: 0; }
+  }
+
+  /* Loading overlay */
+  .loading-overlay {
+    display: none;
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 9999;
+    justify-content: center;
+    align-items: center;
+  }
+  .loading-overlay.active { display: flex; }
+  .loading-box {
+    background: #fff;
+    padding: 24px 36px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 700;
+    color: #333;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
   }
 </style>
 </head>
 <body>
+
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="loading-box" id="loadingMsg">処理中...</div>
+</div>
 
 <div class="toolbar-wrap">
   <div class="toolbar">
@@ -238,7 +277,11 @@
       <button class="font-size-btn" onclick="setFontSize('large',this)">大</button>
     </div>
     <div class="tg">
-      <button class="btn-add-sec" onclick="addSection()">＋ セクション追加</button>
+      <button class="btn-add-sec" onclick="addSection()">＋ セクション</button>
+    </div>
+    <div class="tg">
+      <button class="btn-export" onclick="exportZip()">📦 ZIP出力</button>
+      <button class="btn-import" onclick="document.getElementById('zipInput').click()">📂 ZIP読込</button>
     </div>
     <div class="tg">
       <button onclick="clearAllData()" style="background:#c0392b">全消去</button>
@@ -247,12 +290,13 @@
 </div>
 
 <input type="file" id="imgInput" style="display:none" accept="image/*" onchange="handleImgUpload(this)">
+<input type="file" id="zipInput" style="display:none" accept=".zip" onchange="importZip(this)">
 
 <div class="paper" id="paper"></div>
 
 <div class="toolbar-wrap">
   <div class="bottom-bar">
-    <span class="status-msg" id="statusMsg">Auto-saving...</span>
+    <span class="status-msg" id="statusMsg">Ready</span>
     <button onclick="window.print()">🖨 印刷 / PDF保存</button>
   </div>
 </div>
@@ -261,6 +305,25 @@
   let currentFontSize = 'small';
   const TAB_STEP = 60;
   const STEPS_BEFORE_WRAP = 5;
+
+  // ===== Utility =====
+  function showLoading(msg) {
+    document.getElementById('loadingMsg').textContent = msg || '処理中...';
+    document.getElementById('loadingOverlay').classList.add('active');
+  }
+  function hideLoading() {
+    document.getElementById('loadingOverlay').classList.remove('active');
+  }
+  function setStatus(msg) {
+    document.getElementById('statusMsg').textContent = msg;
+  }
+  function debounce(func, wait) {
+    let timeout;
+    return function() {
+      clearTimeout(timeout);
+      timeout = setTimeout(() => func.apply(this, arguments), wait);
+    };
+  }
 
   // ===== LocalStorage =====
   function saveToLocal() {
@@ -277,28 +340,27 @@
       sections: data
     }));
     const now = new Date();
-    document.getElementById('statusMsg').innerText = `Saved at ${now.getHours()}:${now.getMinutes()}:${now.getSeconds()}`;
+    setStatus(`保存 ${now.getHours()}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`);
   }
 
   function loadFromLocal() {
     const raw = localStorage.getItem('B5GyoumuData');
-    if (!raw) {
-      addSection();
-      return;
-    }
+    if (!raw) { addSection(); return; }
     const store = JSON.parse(raw);
     currentFontSize = store.fontSize || 'small';
-    
-    // Sync UI for font size
-    document.querySelectorAll('.font-size-btn').forEach(b => {
-        b.classList.toggle('sz-active', b.innerText.includes(currentFontSize === 'small' ? '小' : (currentFontSize === 'medium' ? '中' : '大')));
-    });
-
+    syncFontSizeUI();
     store.sections.forEach(s => addSection(s.label, s.content, s.collapsed));
   }
 
+  function syncFontSizeUI() {
+    const label = currentFontSize === 'small' ? '小' : (currentFontSize === 'medium' ? '中' : '大');
+    document.querySelectorAll('.font-size-btn').forEach(b => {
+      b.classList.toggle('sz-active', b.textContent === label);
+    });
+  }
+
   function clearAllData() {
-    if(confirm('全てのデータを消去しますか？')) {
+    if (confirm('全てのデータを消去しますか？')) {
       localStorage.removeItem('B5GyoumuData');
       location.reload();
     }
@@ -323,8 +385,6 @@
     `;
     document.getElementById('paper').appendChild(sec);
     updateTabOffsets();
-    
-    // Auto-save listeners
     sec.addEventListener('input', debounce(saveToLocal, 1000));
   }
 
@@ -375,19 +435,23 @@
     if (!input.files || !input.files[0]) return;
     const reader = new FileReader();
     reader.onload = function(e) {
-      const imgHtml = `<img src="${e.target.result}" alt="uploaded image">`;
-      document.execCommand('insertHTML', false, imgHtml);
+      document.execCommand('insertHTML', false, `<img src="${e.target.result}" alt="uploaded image">`);
       saveToLocal();
     };
     reader.readAsDataURL(input.files[0]);
+    input.value = '';
   }
 
-  function execCmd(cmd, val) { document.execCommand(cmd, false, val || null); saveToLocal(); }
+  function execCmd(cmd, val) {
+    document.execCommand(cmd, false, val || null);
+    saveToLocal();
+  }
 
   function applyHighlight() {
     const mode = document.getElementById('hlMode').value;
-    if (mode === 'bg') execCmd('hiliteColor', '#fff176');
-    else {
+    if (mode === 'bg') {
+      execCmd('hiliteColor', '#fff176');
+    } else {
       const sel = window.getSelection();
       if (!sel.rangeCount || sel.isCollapsed) return;
       const span = document.createElement('span');
@@ -397,15 +461,154 @@
     }
   }
 
-  function debounce(func, wait) {
-    let timeout;
-    return function() {
-      clearTimeout(timeout);
-      timeout = setTimeout(() => func.apply(this, arguments), wait);
-    };
+  // ===== ZIP EXPORT =====
+  async function exportZip() {
+    showLoading('ZIP生成中...');
+    try {
+      const zip = new JSZip();
+      const sections = document.querySelectorAll('.section');
+      const manifest = {
+        version: 2,
+        fontSize: currentFontSize,
+        exportDate: new Date().toISOString(),
+        sections: []
+      };
+
+      let imgIndex = 0;
+
+      for (let i = 0; i < sections.length; i++) {
+        const sec = sections[i];
+        const label = sec.querySelector('.tab-label').innerText;
+        let content = sec.querySelector('.section-content').innerHTML;
+        const collapsed = sec.classList.contains('collapsed');
+
+        // Extract images from content, save as separate files
+        const imgRegex = /src="data:(image\/[^;]+);base64,([^"]+)"/g;
+        let match;
+        const images = [];
+
+        while ((match = imgRegex.exec(content)) !== null) {
+          const mimeType = match[1];
+          const ext = mimeType.split('/')[1].replace('jpeg', 'jpg');
+          const fileName = `images/img_${imgIndex}.${ext}`;
+          const base64Data = match[2];
+
+          // Add image file to ZIP
+          zip.file(fileName, base64Data, { base64: true });
+
+          // Replace data URI with relative path in content
+          content = content.replace(match[0], `src="${fileName}"`);
+          images.push({ file: fileName, mime: mimeType });
+          imgIndex++;
+        }
+
+        // Re-run regex on updated content (reset lastIndex)
+        // Actually we need to rebuild since we modified content in-place
+        // The replace above handles it
+
+        manifest.sections.push({
+          index: i,
+          label: label,
+          collapsed: collapsed,
+          images: images
+        });
+
+        // Save section content as HTML fragment
+        zip.file(`sections/section_${i}.html`, content);
+      }
+
+      // Save manifest
+      zip.file('manifest.json', JSON.stringify(manifest, null, 2));
+
+      // Generate and download
+      const blob = await zip.generateAsync({
+        type: 'blob',
+        compression: 'DEFLATE',
+        compressionOptions: { level: 6 }
+      });
+
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const date = new Date();
+      const dateStr = `${date.getFullYear()}${String(date.getMonth()+1).padStart(2,'0')}${String(date.getDate()).padStart(2,'0')}_${String(date.getHours()).padStart(2,'0')}${String(date.getMinutes()).padStart(2,'0')}`;
+      a.href = url;
+      a.download = `B5資料_${dateStr}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      setStatus(`ZIP出力完了 (${sections.length}セクション)`);
+    } catch (err) {
+      alert('ZIP出力エラー: ' + err.message);
+      console.error(err);
+    }
+    hideLoading();
   }
 
-  // Init
+  // ===== ZIP IMPORT =====
+  async function importZip(input) {
+    if (!input.files || !input.files[0]) return;
+    
+    const mergeMode = document.querySelectorAll('.section').length > 0
+      ? confirm('現在のデータに追加しますか？\n「OK」= 追加　「キャンセル」= 置き換え')
+      : false;
+
+    showLoading('ZIP読込中...');
+    try {
+      const file = input.files[0];
+      const arrayBuf = await file.arrayBuffer();
+      const zip = await JSZip.loadAsync(arrayBuf);
+
+      // Read manifest
+      const manifestFile = zip.file('manifest.json');
+      if (!manifestFile) throw new Error('manifest.json が見つかりません');
+      const manifest = JSON.parse(await manifestFile.async('string'));
+
+      // Clear existing if not merging
+      if (!mergeMode) {
+        document.getElementById('paper').innerHTML = '';
+      }
+
+      // Set font size from manifest
+      if (manifest.fontSize) {
+        currentFontSize = manifest.fontSize;
+        syncFontSizeUI();
+      }
+
+      // Load each section
+      for (const secData of manifest.sections) {
+        const contentFile = zip.file(`sections/section_${secData.index}.html`);
+        if (!contentFile) continue;
+        let content = await contentFile.async('string');
+
+        // Restore images: replace relative paths with data URIs
+        if (secData.images && secData.images.length > 0) {
+          for (const img of secData.images) {
+            const imgFile = zip.file(img.file);
+            if (imgFile) {
+              const base64 = await imgFile.async('base64');
+              // Replace all occurrences of this image path
+              content = content.split(`src="${img.file}"`).join(`src="data:${img.mime};base64,${base64}"`);
+            }
+          }
+        }
+
+        addSection(secData.label, content, secData.collapsed || false);
+      }
+
+      updateTabOffsets();
+      saveToLocal();
+      setStatus(`ZIP読込完了 (${manifest.sections.length}セクション)`);
+    } catch (err) {
+      alert('ZIP読込エラー: ' + err.message);
+      console.error(err);
+    }
+    hideLoading();
+    input.value = '';
+  }
+
+  // ===== Init =====
   window.onload = loadFromLocal;
 </script>
 </body>
